@@ -130,11 +130,11 @@ def distorted_inputs(dataset, batch_size=None, num_preprocess_threads=None):
   # Force all input processing onto CPU in order to reserve the GPU for
   # the forward inference and back-propagation.
   with tf.device('/cpu:0'):
-    images, labels = batch_inputs(
+    images, labels, filenames = batch_inputs(
         dataset, batch_size, train=True,
         num_preprocess_threads=num_preprocess_threads,
         num_readers=FLAGS.num_readers)
-  return images, labels
+  return images, labels, filenames
 
 
 def decode_jpeg(image_buffer, scope=None):
@@ -230,7 +230,6 @@ def distort_image(image, height, width, thread_id=0, scope=None):
     # Restore the shape since the dynamic slice based upon the bbox_size loses
     # the third dimension.
     distorted_image.set_shape([height, width, 3])
-    distorted_image = tf.cast(distorted_image, dtype=tf.float32) / 255.0
     if not thread_id:
       tf.image_summary('cropped_resized_image',
                        tf.expand_dims(distorted_image, 0))
@@ -352,7 +351,7 @@ def parse_example_proto(example_serialized):
       'image/class/label': tf.FixedLenFeature([], dtype=tf.string,
                                           default_value=''),
       'image/filename': tf.FixedLenFeature([], dtype=tf.string,
-                                          default_value='') 
+                                          default_value='')
   }
   #sparse_float32 = tf.VarLenFeature(dtype=tf.float32)
   ## Sparse features in Example proto.
@@ -363,8 +362,8 @@ def parse_example_proto(example_serialized):
   #                                 'image/object/bbox/ymax']})
 
   features = tf.parse_single_example(example_serialized, feature_map)
-  label = tf.cast(features['image/class/label'], dtype=tf.int32)
-  filename = tf.cast(features['image/filename'], dtype=tf.string)
+  #label = tf.cast(features['image/class/label'], dtype=tf.int32)
+  #filename = tf.cast(features['image/filename'], dtype=tf.string)
 
   #xmin = tf.expand_dims(features['image/object/bbox/xmin'].values, 0)
   #ymin = tf.expand_dims(features['image/object/bbox/ymin'].values, 0)
@@ -379,7 +378,7 @@ def parse_example_proto(example_serialized):
   #bbox = tf.expand_dims(bbox, 0)
   #bbox = tf.transpose(bbox, [0, 2, 1])
 
-  return features['image/encoded'], label, filename
+  return features['image/encoded'], features['image/class/label'], features['image/filename']
 
 
 def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
@@ -469,9 +468,9 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
       image_buffer, label_index, filename = parse_example_proto(
           example_serialized)
       image = image_preprocessing(image_buffer, train, thread_id)
-      images_and_labels.append([image, label_index])
+      images_and_labels.append([image, label_index, filename])
 
-    images, label_index_batch = tf.train.batch_join(
+    images, label_index_batch, filenames = tf.train.batch_join(
         images_and_labels,
         batch_size=batch_size,
         capacity=2 * num_preprocess_threads * batch_size)
@@ -487,4 +486,4 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
     # Display the training images in the visualizer.
     tf.image_summary('images', images)
 
-    return images, tf.reshape(label_index_batch, [batch_size])
+    return images, tf.reshape(label_index_batch, [batch_size]), tf.reshape(filenames, [batch_size])

@@ -257,7 +257,7 @@ def _read_annotations():
 
   # read image labels -- their relations
   train_label_raw, test_label_raw = mat['anno_train'], mat['anno_test']
-  train_label, test_label = np.zeros(train_label_raw.shape), np.zeros(test_label_raw.shape)
+  train_label, test_label = np.zeros(train_label_raw.shape, dtype = np.int32), np.zeros(test_label_raw.shape, dtype = np.int32)
   for row in range(0, train_label_raw.shape[0]):
     for col in range(0, train_label_raw.shape[1]):
       entry = train_label_raw[row, col]

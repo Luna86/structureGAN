@@ -18,7 +18,8 @@ class WassersteinGAN(object):
         self.d_net = d_net
         self.batch_size = 32
         self.x_sampler = data_sampler[0]
-        self.y_sampler = data_sampler[1] 
+        self.y_sampler = data_sampler[1]
+        self.name_sampler = data_sampler[2]
         self.z_sampler = z_sampler
         self.z_dim = 100
         #self.x_dim = self.x.get_shape[1] * self.x.shape[2] * self.x.shape[3]
@@ -50,6 +51,7 @@ class WassersteinGAN(object):
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
         tf.train.start_queue_runners(sess=self.sess)
 
+
     def train(self, num_batches=1000000):
         plt.ion()
         self.sess.run(tf.global_variables_initializer())
@@ -60,8 +62,7 @@ class WassersteinGAN(object):
                  d_iters = 100
 
             for _ in range(0, d_iters):
-                print("123")
-                bx = self.sess.run(self.x_sampler)
+                bx, by, names = self.sess.run([self.x_sampler, self.y_sampler, self.name_sampler])
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 self.sess.run(self.d_clip)
                 self.sess.run(self.d_rmsprop, feed_dict={self.x: bx, self.z: bz})
@@ -71,7 +72,7 @@ class WassersteinGAN(object):
 
             if t % 100 == 0 or t < 100:
                 #bx = self.x_sampler(batch_size)
-                bx = self.sess.run(self.x)
+                bx = self.sess.run(self.x_sampler)
                 bz = self.z_sampler(self.batch_size, self.z_dim)
 
                 d_loss = self.sess.run(
@@ -84,11 +85,12 @@ class WassersteinGAN(object):
                         (t + 1, time.time() - start_time, d_loss - g_loss, g_loss))
 
             if t % 100 == 0:
-                bz = self.z_sampler(batch_size, self.z_dim)
+                bz = self.z_sampler(self.batch_size, self.z_dim)
                 bx = self.sess.run(self.x_, feed_dict={self.z: bz})
-                bx = xs.data2img(bx)
+                #bx = xs.data2img(bx)
+                bx = (bx * 255).astype(np.uint8)
                 fig = plt.figure(self.data + '.' + self.model)
-                grid_show(fig, bx, xs.shape)
+                grid_show(fig, bx, [64, 64, 3])
                 path = 'logs/{}/'.format(self.data)
                 if not os.path.exists(path):
                     os.makedirs(path)

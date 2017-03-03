@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
-
+from PIL import Image
 import matplotlib.pyplot as plt
 
 
@@ -31,3 +31,7 @@ def grid_show(fig, x, size):
         ax.imshow(x)
     else:
         ax.imshow(x, cmap='gray')
+
+def show_image(data):
+    img = Image.fromarray(data, 'RGB')
+    img.show()

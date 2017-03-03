@@ -17,8 +17,10 @@ class dataset(object):
                                 num_preprocess_threads = num_preprocess_threads)
 
     class NoiseSampler(object):
-        def __call__(self, z_dim):
-            return np.random.uniform(-1.0, 1.0, [batchsize, z_dim])
+        def __call__(self, batch_size, z_dim):
+            return np.random.uniform(-1.0, 1.0, [batch_size, z_dim])
+
+
 #class DataSampler(object):
 #    def __init__(self):
 #        self.shape = [28, 28, 1]

@@ -4,3 +4,5 @@ mnist/*
 MNIST/*
 lsun/*
 *.pyc
+hico/*.pyc
+*.swp
