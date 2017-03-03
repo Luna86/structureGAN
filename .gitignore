@@ -3,3 +3,4 @@ logs/*
 mnist/*
 MNIST/*
 lsun/*
+*.pyc
