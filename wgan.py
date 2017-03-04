@@ -7,6 +7,8 @@ import tensorflow.contrib as tc
 
 from visualize import *
 
+import matplotlib.pyplot as plt
+
 logging = tf.logging
 logging.set_verbosity(tf.logging.ERROR)
 
@@ -25,6 +27,7 @@ class WassersteinGAN(object):
 
         self.batch_size = self.dataset.config.batch_size
         self.z_dim = self.dataset.config.z_dim
+        self.image_size = self.dataset.config.image_size
 
 
         self.x = tf.placeholder(tf.float32, self.x_sampler.get_shape(), name='x')
@@ -66,6 +69,16 @@ class WassersteinGAN(object):
 
             for _ in range(0, d_iters):
                 bx, by, names = self.sess.run([self.x_sampler, self.y_sampler, self.name_sampler])
+
+                convert_op = tf.image.convert_image_dtype(bx, dtype=tf.uint8)
+                bx = self.sess.run(convert_op) 
+                fig = plt.figure(self.data + '.' + self.model)
+                grid_show(fig, bx, [self.image_size, self.image_size, 3])
+                path = 'logs/{}/'.format('test')
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                fig.savefig('logs/{}/{}.pdf'.format('test', t/100))
+
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 self.sess.run(self.d_clip)
                 self.sess.run(self.d_rmsprop, feed_dict={self.x: bx, self.z: bz})
@@ -93,7 +106,7 @@ class WassersteinGAN(object):
                 #bx = xs.data2img(bx)
                 bx = (bx * 255).astype(np.uint8)
                 fig = plt.figure(self.data + '.' + self.model)
-                grid_show(fig, bx, [64, 64, 3])
+                grid_show(fig, bx, [self.image_size, self.image_size, 3])
                 path = 'logs/{}/'.format(self.data)
                 if not os.path.exists(path):
                     os.makedirs(path)
@@ -111,8 +124,6 @@ if __name__ == '__main__':
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
 
-
-    print(args.batch_size)
     model = importlib.import_module(args.data + '.' + args.model)
     config = importlib.import_module(args.data).config(
                 batch_size = args.batch_size, image_size = args.image_size)

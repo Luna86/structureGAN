@@ -151,12 +151,13 @@ def distort_image(image, height, width, thread_id=0, scope=None):
     # ratio is not respected. We select a resize method in a round robin
     # fashion based on the thread number.
     # Note that ResizeMethod contains 4 enumerated resizing methods.
-    resize_method = thread_id % 4
+    #resize_method = thread_id % 4
+    resize_method = 2
     distorted_image = tf.image.resize_images(distorted_image, [height, width],
                                              method=resize_method)
     # Restore the shape since the dynamic slice based upon the bbox_size loses
     # the third dimension.
-    distorted_image.set_shape([height, width, 3])
+    #distorted_image.set_shape([height, width, 3])
     if not thread_id:
       tf.image_summary('cropped_resized_image',
                        tf.expand_dims(distorted_image, 0))
@@ -281,8 +282,8 @@ def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=
     data_files = dataset.data_files()
     if data_files is None:
       raise ValueError('No data files found for this dataset')
-    else:
-      print(data_files)
+    #else:
+    #  print(data_files)
 
     # Create filename_queue
     if train:
