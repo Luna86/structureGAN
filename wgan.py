@@ -11,18 +11,21 @@ logging = tf.logging
 logging.set_verbosity(tf.logging.ERROR)
 
 class WassersteinGAN(object):
-    def __init__(self, g_net, d_net, data_sampler, z_sampler, data, model):
+    def __init__(self, g_net, d_net, data, model):
         self.model = model
-        self.data = data
+        self.dataset = data
+        self.data = self.dataset.name
         self.g_net = g_net
         self.d_net = d_net
-        self.batch_size = 32
-        self.x_sampler = data_sampler[0]
-        self.y_sampler = data_sampler[1]
-        self.name_sampler = data_sampler[2]
-        self.z_sampler = z_sampler
-        self.z_dim = 100
-        #self.x_dim = self.x.get_shape[1] * self.x.shape[2] * self.x.shape[3]
+
+        self.x_sampler = self.dataset.train_sampler[0]
+        self.y_sampler = self.dataset.train_sampler[1]
+        self.name_sampler = self.dataset.train_sampler[2]
+        self.z_sampler = self.dataset.noise_sampler
+
+        self.batch_size = self.dataset.config.batch_size
+        self.z_dim = self.dataset.config.z_dim
+
 
         self.x = tf.placeholder(tf.float32, self.x_sampler.get_shape(), name='x')
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
@@ -102,15 +105,21 @@ if __name__ == '__main__':
     parser.add_argument('--data', type=str, default='hico')
     parser.add_argument('--model', type=str, default='dcgan')
     parser.add_argument('--gpus', type=str, default='0')
+    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--image_size', type=int, default=64)
     args = parser.parse_args()
+
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
-    
+
+
+    print(args.batch_size)
     model = importlib.import_module(args.data + '.' + args.model)
-    data = importlib.import_module(args.data).dataset()
-    xs = data.train_sampler
-    #xs = data.DataSampler()
-    zs = data.NoiseSampler()
+    config = importlib.import_module(args.data).config(
+                batch_size = args.batch_size, image_size = args.image_size)
+
+    data = importlib.import_module(args.data).dataset(config)
+
     d_net = model.Discriminator()
     g_net = model.Generator()
-    wgan = WassersteinGAN(g_net, d_net, xs, zs, args.data, args.model)
+    wgan = WassersteinGAN(g_net, d_net, data, args.model)
     wgan.train()

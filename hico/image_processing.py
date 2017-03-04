@@ -1,41 +1,3 @@
-# Copyright 2016 Google Inc. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-"""Read and preprocess image data.
-
- Image processing occurs on a single image at a time. Image are read and
- preprocessed in parallel across multiple threads. The resulting images
- are concatenated together to form a single batch for training or evaluation.
-
- -- Provide processed image data for a network:
- inputs: Construct batches of evaluation examples of images.
- distorted_inputs: Construct batches of training examples of images.
- batch_inputs: Construct batches of training or evaluation examples of images.
-
- -- Data processing:
- parse_example_proto: Parses an Example proto containing a training example
-   of an image.
-
- -- Image decoding:
- decode_jpeg: Decode a JPEG encoded string into a 3-D float32 Tensor.
-
- -- Image preprocessing:
- image_preprocessing: Decode and preprocess one image for evaluation or training
- distort_image: Distort one image for training a network.
- eval_image: Prepare one image for evaluation.
- distort_color: Distort the color in one image for training.
-"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -46,8 +8,6 @@ FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_integer('batch_size', 32,
                             """Number of images to process in a batch.""")
-tf.app.flags.DEFINE_integer('image_size', 64,
-                            """Provide square images of this size.""")
 tf.app.flags.DEFINE_integer('num_preprocess_threads', 4,
                             """Number of preprocessing threads per tower. """
                             """Please make this a multiple of 4.""")
@@ -71,67 +31,34 @@ tf.app.flags.DEFINE_integer('input_queue_memory_factor', 16,
                             """comments in code for more details.""")
 
 
-def inputs(dataset, batch_size=None, num_preprocess_threads=None):
-  """Generate batches of ImageNet images for evaluation.
-
-  Use this function as the inputs for evaluating a network.
-
-  Note that some (minimal) image preprocessing occurs during evaluation
-  including central cropping and resizing of the image to fit the network.
-
-  Args:
-    dataset: instance of Dataset class specifying the dataset.
-    batch_size: integer, number of examples in batch
-    num_preprocess_threads: integer, total number of preprocessing threads but
-      None defaults to FLAGS.num_preprocess_threads.
-
-  Returns:
-    images: Images. 4D tensor of size [batch_size, FLAGS.image_size,
-                                       image_size, 3].
-    labels: 1-D integer Tensor of [FLAGS.batch_size].
-  """
+def inputs(dataset, batch_size=None, image_size=None, num_preprocess_threads=None):
   if not batch_size:
     batch_size = FLAGS.batch_size
+  if not image_size:
+    image_size = FLAGS.image_size
 
   # Force all input processing onto CPU in order to reserve the GPU for
   # the forward inference and back-propagation.
   with tf.device('/cpu:0'):
     images, labels = batch_inputs(
-        dataset, batch_size, train=False,
+        dataset, batch_size, image_size, train=False,
         num_preprocess_threads=num_preprocess_threads,
         num_readers=1)
 
   return images, labels
 
 
-def distorted_inputs(dataset, batch_size=None, num_preprocess_threads=None):
-  """Generate batches of distorted versions of ImageNet images.
-
-  Use this function as the inputs for training a network.
-
-  Distorting images provides a useful technique for augmenting the data
-  set during training in order to make the network invariant to aspects
-  of the image that do not effect the label.
-
-  Args:
-    dataset: instance of Dataset class specifying the dataset.
-    batch_size: integer, number of examples in batch
-    num_preprocess_threads: integer, total number of preprocessing threads but
-      None defaults to FLAGS.num_preprocess_threads.
-
-  Returns:
-    images: Images. 4D tensor of size [batch_size, FLAGS.image_size,
-                                       FLAGS.image_size, 3].
-    labels: 1-D integer Tensor of [batch_size].
-  """
+def distorted_inputs(dataset, batch_size=None, image_size=None, num_preprocess_threads=None):
   if not batch_size:
     batch_size = FLAGS.batch_size
+  if not image_size:
+    image_size = FLAGS.image_size
 
   # Force all input processing onto CPU in order to reserve the GPU for
   # the forward inference and back-propagation.
   with tf.device('/cpu:0'):
     images, labels, filenames = batch_inputs(
-        dataset, batch_size, train=True,
+        dataset, batch_size, image_size, train=True,
         num_preprocess_threads=num_preprocess_threads,
         num_readers=FLAGS.num_readers)
   return images, labels, filenames
@@ -270,29 +197,13 @@ def eval_image(image, height, width, scope=None):
     return image
 
 
-def image_preprocessing(image_buffer, train, thread_id=0):
-  """Decode and preprocess one image for evaluation or training.
-
-  Args:
-    image_buffer: JPEG encoded string Tensor
-    bbox: 3-D float Tensor of bounding boxes arranged [1, num_boxes, coords]
-      where each coordinate is [0, 1) and the coordinates are arranged as
-      [ymin, xmin, ymax, xmax].
-    train: boolean
-    thread_id: integer indicating preprocessing thread
-
-  Returns:
-    3-D float Tensor containing an appropriately scaled image
-
-  Raises:
-    ValueError: if user does not provide bounding box
-  """
+def image_preprocessing(image_buffer, image_size, train, thread_id=0):
   #if bbox is None:
   #  raise ValueError('Please supply a bounding box.')
 
   image = decode_jpeg(image_buffer)
-  height = FLAGS.image_size
-  width = FLAGS.image_size
+  height = image_size
+  width = image_size
 
   if train:
     image = distort_image(image, height, width, thread_id)
@@ -312,22 +223,6 @@ def parse_example_proto(example_serialized):
   containing serialized Example protocol buffers. Each Example proto contains
   the following fields:
 
-    image/height: 462
-    image/width: 581
-    image/colorspace: 'RGB'
-    image/channels: 3
-    image/class/label: 615
-    image/class/synset: 'n03623198'
-    image/class/text: 'knee pad'
-    image/object/bbox/xmin: 0.1
-    image/object/bbox/xmax: 0.9
-    image/object/bbox/ymin: 0.2
-    image/object/bbox/ymax: 0.6
-    image/object/bbox/label: 615
-    image/format: 'JPEG'
-    image/filename: 'ILSVRC2012_val_00041207.JPEG'
-    image/encoded: <JPEG encoded string>
-
   example = tf.train.Example(features=tf.train.Features(feature={
       'image/height': _int64_feature(height),
       'image/width': _int64_feature(width),
@@ -337,7 +232,6 @@ def parse_example_proto(example_serialized):
       'image/format': _bytes_feature(image_format),
       'image/filename': _bytes_feature(os.path.basename(filename)),
       'image/encoded': _bytes_feature(image_buffer)}))
-
 
     bbox: 3-D float Tensor of bounding boxes arranged [1, num_boxes, coords]
       where each coordinate is [0, 1) and the coordinates are arranged as
@@ -381,29 +275,14 @@ def parse_example_proto(example_serialized):
   return features['image/encoded'], features['image/class/label'], features['image/filename']
 
 
-def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
+def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=None,
                  num_readers=1):
-  """Contruct batches of training or evaluation examples from the image dataset.
-
-  Args:
-    dataset: instance of Dataset class specifying the dataset.
-      See dataset.py for details.
-    batch_size: integer
-    train: boolean
-    num_preprocess_threads: integer, total number of preprocessing threads
-    num_readers: integer, number of parallel readers
-
-  Returns:
-    images: 4-D float Tensor of a batch of images
-    labels: 1-D integer Tensor of [batch_size].
-
-  Raises:
-    ValueError: if data is not found
-  """
   with tf.name_scope('batch_processing'):
     data_files = dataset.data_files()
     if data_files is None:
       raise ValueError('No data files found for this dataset')
+    else:
+      print(data_files)
 
     # Create filename_queue
     if train:
@@ -467,7 +346,7 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
       #    example_serialized)
       image_buffer, label_index, filename = parse_example_proto(
           example_serialized)
-      image = image_preprocessing(image_buffer, train, thread_id)
+      image = image_preprocessing(image_buffer, image_size, train, thread_id)
       images_and_labels.append([image, label_index, filename])
 
     images, label_index_batch, filenames = tf.train.batch_join(
@@ -476,8 +355,8 @@ def batch_inputs(dataset, batch_size, train, num_preprocess_threads=None,
         capacity=2 * num_preprocess_threads * batch_size)
 
     # Reshape images into these desired dimensions.
-    height = FLAGS.image_size
-    width = FLAGS.image_size
+    height = image_size
+    width = image_size
     depth = 3
 
     images = tf.cast(images, tf.float32)
