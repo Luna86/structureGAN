@@ -156,9 +156,9 @@ def distort_image(image, height, width, thread_id=0, scope=None):
     # Restore the shape since the dynamic slice based upon the bbox_size loses
     # the third dimension.
     #distorted_image.set_shape([height, width, 3])
-    if not thread_id:
-      tf.image_summary('cropped_resized_image',
-                       tf.expand_dims(distorted_image, 0))
+    #if not thread_id:
+    #  tf.image_summary('cropped_resized_image',
+    #                   tf.expand_dims(distorted_image, 0))
 
     # Randomly flip the image horizontally.
     #distorted_image = tf.image.random_flip_left_right(distorted_image)
@@ -166,9 +166,9 @@ def distort_image(image, height, width, thread_id=0, scope=None):
     # Randomly distort the colors.
     #distorted_image = distort_color(distorted_image, thread_id)
 
-    if not thread_id:
-      tf.image_summary('final_distorted_image',
-                       tf.expand_dims(distorted_image, 0))
+    #if not thread_id:
+    #  tf.image_summary('final_distorted_image',
+    #                   tf.expand_dims(distorted_image, 0))
     return distorted_image
 
 
@@ -210,8 +210,8 @@ def image_preprocessing(image_buffer, image_size, train, thread_id=0):
     image = eval_image(image, height, width)
 
   # Finally, rescale to [-1,1] instead of [0, 1)
-  image = tf.sub(image, 0.5)
-  image = tf.mul(image, 2.0)
+  image = tf.subtract(image, 0.5)
+  image = tf.multiply(image, 2.0)
   return image
 
 
@@ -365,5 +365,5 @@ def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=
     images = tf.reshape(images, shape=[batch_size, height, width, depth])
 
     # Display the training images in the visualizer.
-    tf.image_summary('images', images)
+    tf.summary.image('images', images)
     return images, tf.reshape(label_index_batch, [batch_size]), tf.reshape(filenames, [batch_size])
