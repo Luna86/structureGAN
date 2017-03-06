@@ -6,7 +6,6 @@ from hico import image_processing
 
 num_preprocess_threads = 4
 batchsize = 32
-
    
 class config(object):
     def __init__(self, batch_size=32, image_size=64, num_preprocess_threads=4, z_dim=100):
