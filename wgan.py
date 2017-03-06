@@ -28,7 +28,7 @@ class WassersteinGAN(object):
         self.batch_size = self.dataset.config.batch_size
         self.z_dim = self.dataset.config.z_dim
         self.image_size = self.dataset.config.image_size
-
+        self.logdir = self.dataset.config.logdir
 
         self.x = tf.placeholder(tf.float32, self.x_sampler.get_shape(), name='x')
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
@@ -66,10 +66,10 @@ class WassersteinGAN(object):
         tf.train.start_queue_runners(sess=self.sess)
 
     def init_summary(self):
-        path = 'logs/{}/'.format(self.data)
-        if not os.path.exists(path):
-            os.makedirs(path)
-        self.train_writer = tf.summary.FileWriter(path, self.sess.graph)
+        self.path = 'logs/{}/{}/'.format(self.data, self.logdir)
+        if not os.path.exists(self.path):
+            os.makedirs(self.path)
+        self.train_writer = tf.summary.FileWriter(self.path, self.sess.graph)
 
     def write_summary(self, d_loss, g_loss, t):
         self.sess.run(self.g_loss_monitor.assign(g_loss))
@@ -113,9 +113,11 @@ class WassersteinGAN(object):
             if t % 100 == 0:
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 bx = self.sess.run(self.x_, feed_dict={self.z: bz})
+                rescaled = np.divide(bx + 1.0, 2.0)
+                np.reshape(np.clip(rescaled, 0.0, 1.0), bx.shape)
                 y = concat_multiple_images(bx)
                 #bx = xs.data2img(bx)
-                scipy.misc.imsave('logs/{}/{}.png'.format(self.data, t), y)
+                scipy.misc.imsave('{}/{}.png'.format(self.path, t), y)
 
         self.terminate()
 
@@ -127,13 +129,15 @@ if __name__ == '__main__':
     parser.add_argument('--gpus', type=str, default='0')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--image_size', type=int, default=64)
+    parser.add_argument('--logdir', type=str, default='')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
 
     model = importlib.import_module(args.data + '.' + args.model)
     config = importlib.import_module(args.data).config(
-                batch_size = args.batch_size, image_size = args.image_size)
+                batch_size = args.batch_size, image_size = args.image_size,
+                logdir = args.logdir)
 
     data = importlib.import_module(args.data).dataset(config)
 

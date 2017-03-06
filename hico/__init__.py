@@ -9,11 +9,12 @@ batchsize = 32
 
    
 class config(object):
-    def __init__(self, batch_size=32, image_size=64, num_preprocess_threads=4, z_dim=100):
+    def __init__(self, batch_size=32, image_size=64, num_preprocess_threads=4, z_dim=100, logdir=''):
         self.batch_size = batch_size
         self.image_size = image_size
         self.num_preprocess_threads = num_preprocess_threads
-        self.z_dim = z_dim 
+        self.z_dim = z_dim
+        self.logdir = logdir
 
 class NoiseSampler(object):
     def __call__(self, batch_size, z_dim):
