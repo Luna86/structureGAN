@@ -34,7 +34,7 @@ import tensorflow as tf
 FLAGS = tf.app.flags.FLAGS
 
 # Basic model parameters.
-tf.app.flags.DEFINE_string('data_dir', '/media/hao/WDdisk/relation2image/data/hico_benchmark/hico_20150920/tfrecord',
+tf.app.flags.DEFINE_string('data_dir', '/users/hzhang2/projects/structureGAN/hico/tfrecord',
                            """Path to the processed data, i.e. """
                            """TFRecord of Example protos.""")
 
