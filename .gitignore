@@ -6,3 +6,4 @@ lsun/*
 *.pyc
 hico/*.pyc
 *.swp
+hico/tfrecord/*
