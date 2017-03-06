@@ -3,7 +3,7 @@ import matplotlib
 matplotlib.use('Agg')
 from PIL import Image
 import matplotlib.pyplot as plt
-
+import scipy.misc
 
 def split(x):
     assert type(x) == int
@@ -32,6 +32,12 @@ def grid_show(fig, x, size):
     else:
         ax.imshow(x, cmap='gray')
 
-def show_image(data):
-    img = Image.fromarray(data, 'RGB')
-    img.show()
+def concat_multiple_images(data):
+    num_images, height, width, channel = data.shape[0], data.shape[1], data.shape[2], data.shape[3]
+    x = int(np.sqrt(num_images))
+    y = np.zeros([x*height, x*width, channel])
+    for i in range(x):
+        for j in range(x):
+            y[i * height:(i+1) * height, j * width:(j+1)*width, :] = data[i + j * x]
+    return y
+

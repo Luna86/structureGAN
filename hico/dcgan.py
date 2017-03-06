@@ -63,12 +63,12 @@ class Generator(object):
             fc1 = tc.layers.batch_norm(fc1)
             fc1 = tf.nn.relu(fc1)
             fc2 = tc.layers.fully_connected(
-                fc1, 32 * 32 * 128,
+                fc1, 16 * 16 * 128,
                 weights_initializer=tf.random_normal_initializer(stddev=0.02),
                 weights_regularizer=tc.layers.l2_regularizer(2.5e-5),
                 activation_fn=tf.identity
             )
-            fc2 = tf.reshape(fc2, tf.pack([bs, 32, 32, 128]))
+            fc2 = tf.reshape(fc2, tf.pack([bs, 16, 16, 128]))
             fc2 = tc.layers.batch_norm(fc2)
             fc2 = tf.nn.relu(fc2)
             conv1 = tc.layers.convolution2d_transpose(

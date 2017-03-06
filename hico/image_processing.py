@@ -34,8 +34,6 @@ tf.app.flags.DEFINE_integer('input_queue_memory_factor', 16,
 def inputs(dataset, batch_size=None, image_size=None, num_preprocess_threads=None):
   if not batch_size:
     batch_size = FLAGS.batch_size
-  if not image_size:
-    image_size = FLAGS.image_size
 
   # Force all input processing onto CPU in order to reserve the GPU for
   # the forward inference and back-propagation.
@@ -52,7 +50,7 @@ def distorted_inputs(dataset, batch_size=None, image_size=None, num_preprocess_t
   if not batch_size:
     batch_size = FLAGS.batch_size
   if not image_size:
-    image_size = FLAGS.image_size
+    image_size = 64
 
   # Force all input processing onto CPU in order to reserve the GPU for
   # the forward inference and back-propagation.
@@ -152,7 +150,7 @@ def distort_image(image, height, width, thread_id=0, scope=None):
     # fashion based on the thread number.
     # Note that ResizeMethod contains 4 enumerated resizing methods.
     #resize_method = thread_id % 4
-    resize_method = 2
+    resize_method = 0
     distorted_image = tf.image.resize_images(distorted_image, [height, width],
                                              method=resize_method)
     # Restore the shape since the dynamic slice based upon the bbox_size loses
@@ -246,7 +244,11 @@ def parse_example_proto(example_serialized):
       'image/class/label': tf.FixedLenFeature([], dtype=tf.string,
                                           default_value=''),
       'image/filename': tf.FixedLenFeature([], dtype=tf.string,
-                                          default_value='')
+                                          default_value=''),
+      'image/height': tf.FixedLenFeature([], dtype=tf.int64,
+                                        default_value=256),
+      'image/width': tf.FixedLenFeature([], dtype=tf.int64,
+                                        default_value=256),
   }
   #sparse_float32 = tf.VarLenFeature(dtype=tf.float32)
   ## Sparse features in Example proto.
@@ -272,7 +274,6 @@ def parse_example_proto(example_serialized):
   # [1, num_boxes, coords].
   #bbox = tf.expand_dims(bbox, 0)
   #bbox = tf.transpose(bbox, [0, 2, 1])
-
   return features['image/encoded'], features['image/class/label'], features['image/filename']
 
 
@@ -360,10 +361,9 @@ def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=
     width = image_size
     depth = 3
 
-    images = tf.cast(images, tf.float32)
+    #images = tf.cast(images, tf.float32)
     images = tf.reshape(images, shape=[batch_size, height, width, depth])
 
     # Display the training images in the visualizer.
     tf.image_summary('images', images)
-
     return images, tf.reshape(label_index_batch, [batch_size]), tf.reshape(filenames, [batch_size])

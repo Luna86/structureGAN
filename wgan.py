@@ -53,13 +53,35 @@ class WassersteinGAN(object):
             .minimize(self.g_loss_reg, var_list=self.g_net.vars)
 
         self.d_clip = [v.assign(tf.clip_by_value(v, -0.01, 0.01)) for v in self.d_net.vars]
+
+        # init some summary variables
+        self.g_loss_monitor = tf.Variable(0.0, trainable = False)
+        self.d_loss_monitor = tf.Variable(0.0, trainable = False)
+        self.g_loss_summary = tf.summary.scalar('g_loss', self.g_loss_monitor)
+        self.d_loss_summary = tf.summary.scalar('d_loss', self.d_loss_monitor)
+        self.merged = tf.merge_summary([self.g_loss_summary, self.d_loss_summary])
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+
         tf.train.start_queue_runners(sess=self.sess)
 
+    def init_summary(self):
+        path = 'logs/{}/'.format(self.data)
+        if not os.path.exists(path):
+            os.makedirs(path)
+        self.train_writer = tf.summary.FileWriter(path, self.sess.graph)
+
+    def write_summary(self, d_loss, g_loss, t):
+        self.sess.run(self.g_loss_monitor.assign(g_loss))
+        self.sess.run(self.d_loss_monitor.assign(d_loss))
+        [summary]  = self.sess.run([self.merged])
+        self.train_writer.add_summary(summary, t)
+
+    def terminate(self):
+        self.train_writer.close()
 
     def train(self, num_batches=1000000):
-        plt.ion()
+        self.init_summary()
         self.sess.run(tf.global_variables_initializer())
         start_time = time.time()
         for t in range(0, num_batches):
@@ -69,16 +91,6 @@ class WassersteinGAN(object):
 
             for _ in range(0, d_iters):
                 bx, by, names = self.sess.run([self.x_sampler, self.y_sampler, self.name_sampler])
-
-                convert_op = tf.image.convert_image_dtype(bx, dtype=tf.uint8)
-                bx = self.sess.run(convert_op) 
-                fig = plt.figure(self.data + '.' + self.model)
-                grid_show(fig, bx, [self.image_size, self.image_size, 3])
-                path = 'logs/{}/'.format('test')
-                if not os.path.exists(path):
-                    os.makedirs(path)
-                fig.savefig('logs/{}/{}.pdf'.format('test', t/100))
-
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 self.sess.run(self.d_clip)
                 self.sess.run(self.d_rmsprop, feed_dict={self.x: bx, self.z: bz})
@@ -90,27 +102,22 @@ class WassersteinGAN(object):
                 #bx = self.x_sampler(batch_size)
                 bx = self.sess.run(self.x_sampler)
                 bz = self.z_sampler(self.batch_size, self.z_dim)
-
                 d_loss = self.sess.run(
-                    self.d_loss, feed_dict={self.x: bx, self.z: bz}
-                )
+                    self.d_loss, feed_dict={self.x: bx, self.z: bz})
                 g_loss = self.sess.run(
-                    self.g_loss, feed_dict={self.z: bz}
-                )
+                    self.g_loss, feed_dict={self.z: bz})
                 print('Iter [%8d] Time [%5.4f] d_loss [%.4f] g_loss [%.4f]' %
-                        (t + 1, time.time() - start_time, d_loss - g_loss, g_loss))
+                        (t + 1, time.time() - start_time, d_loss, g_loss))
+                self.write_summary(d_loss, g_loss, t)
 
             if t % 100 == 0:
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 bx = self.sess.run(self.x_, feed_dict={self.z: bz})
+                y = concat_multiple_images(bx)
                 #bx = xs.data2img(bx)
-                bx = (bx * 255).astype(np.uint8)
-                fig = plt.figure(self.data + '.' + self.model)
-                grid_show(fig, bx, [self.image_size, self.image_size, 3])
-                path = 'logs/{}/'.format(self.data)
-                if not os.path.exists(path):
-                    os.makedirs(path)
-                fig.savefig('logs/{}/{}.pdf'.format(self.data, t/100))
+                scipy.misc.imsave('logs/{}/{}.png'.format(self.data, t), y)
+
+        self.terminate()
 
 
 if __name__ == '__main__':
