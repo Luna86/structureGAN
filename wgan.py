@@ -59,7 +59,7 @@ class WassersteinGAN(object):
         self.d_loss_monitor = tf.Variable(0.0, trainable = False)
         self.g_loss_summary = tf.summary.scalar('g_loss', self.g_loss_monitor)
         self.d_loss_summary = tf.summary.scalar('d_loss', self.d_loss_monitor)
-        self.merged = tf.merge_summary([self.g_loss_summary, self.d_loss_summary])
+        self.merged = tf.summary.merge([self.g_loss_summary, self.d_loss_summary])
         gpu_options = tf.GPUOptions(allow_growth=True)
         self.sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
