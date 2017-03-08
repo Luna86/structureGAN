@@ -36,7 +36,7 @@ class Discriminator(object):
                 activation_fn=leaky_relu_batch_norm
             )
             conv4 = tcl.flatten(conv4)
-            fc = tcl.fully_connected(conv4, 1, activation_fn=tf.identity)
+            fc = tcl.fully_connected(conv4, 197, activation_fn=tf.identity)
             return fc
 
     @property
@@ -109,6 +109,7 @@ class RelationshipComposition(object):
             fc = tcl.fully_connected(rela, 512, activation_fn=tf.nn.relu)
             feature = tf.reshape(tf.tile(fc, [1, 16 * 16]), tf.stack([bs, 16, 16, 512]))
             # feature = relu_batch_norm(feature)
+            # return tf.concat(3, [feature1, feature, feature2])
             conv1 = tcl.conv2d(
                 tf.concat(3, [feature1, feature, feature2]), 512, [5, 5], [1, 1],
                 weights_initializer=tf.random_normal_initializer(stddev=0.02),
@@ -133,7 +134,7 @@ class RelationshipComposition(object):
             #         + tf.reduce_sum(b_conv_1 * rela, 0)\
             #         )
             return conv2
-            return tf.concat(3, [feature1, feature, feature2])
+            
     @property
     def vars(self):
         return [var for var in tf.global_variables() if self.name in var.name]
@@ -151,8 +152,8 @@ class Generator(object):
     def __call__(self, z, r, o):
         with tf.variable_scope(self.name) as vs:
             feature1 = self.ng(z, reuse=False)
-            feature2 = self.og(tf.one_hot(o, 80), reuse=False)
-            feature = self.rc(feature1, feature2, tf.one_hot(r, 117), reuse=False)
+            feature2 = self.og(o, reuse=False)
+            feature = self.rc(feature1, feature2, r, reuse=False)
             conv1 = tcl.conv2d_transpose(
                 feature, 128, [4, 4], [2, 2],
                 weights_initializer=tf.random_normal_initializer(stddev=0.02),

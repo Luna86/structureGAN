@@ -32,15 +32,19 @@ class WassersteinGAN(object):
 
         self.x = tf.placeholder(tf.float32, self.x_sampler.get_shape(), name='x')
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
-        self.r = tf.placeholder(tf.int32, [self.batch_size], name='r')
-        self.o = tf.placeholder(tf.int32, [self.batch_size], name='o')
+        self.r = tf.placeholder(tf.float32, [self.batch_size, 117], name='r')
+        self.o = tf.placeholder(tf.float32, [self.batch_size, 80], name='o')
 
         self.x_ = self.g_net(self.z, self.r, self.o)
         self.d = self.d_net(self.x, reuse=False)
         self.d_ = self.d_net(self.x_)
 
-        self.g_loss = tf.reduce_mean(self.d_)
-        self.d_loss = tf.reduce_mean(self.d) - tf.reduce_mean(self.d_)
+        self.g_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.d_[:, :80], self.o) \
+                    + tf.nn.softmax_cross_entropy_with_logits(self.d_[:, 80:], self.r))
+        self.d_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.d[:, :80], self.o) \
+                    + tf.nn.softmax_cross_entropy_with_logits(self.d[:, 80:], self.r)) \
+                    - tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.d_[:, :80], self.o) \
+                    + tf.nn.softmax_cross_entropy_with_logits(self.d_[:, 80:], self.r))
 
         self.reg = tc.layers.apply_regularization(
             tc.layers.l1_regularizer(2.5e-5),
@@ -86,13 +90,21 @@ class WassersteinGAN(object):
         positives, negatives = [], []
         if sample:
             for i in range(y.shape[0]):
-                positives.append(self.dataset.list_relation[np.where(y[i] == 1)[0][0]])
-                negatives.append(self.dataset.list_relation[np.where(y[i] == -1)[0][0]])
+                positives.append(self.dataset.train.list_relation[np.where(y[i] == 1)[0][0]])
+                negatives.append(self.dataset.train.list_relation[np.where(y[i] == -1)[0][0]])
         else:
             for i in range(y.shape[0]):
-                positives.append(self.dataset.list_relation[np.where(y[i] == 1)[0]])
-                negatives.append(self.dataset.list_relation[np.where(y[i] == -1)[0]])
+                positives.append(self.dataset.train.list_relation[np.where(y[i] == 1)[0]])
+                negatives.append(self.dataset.train.list_relation[np.where(y[i] == -1)[0]])
         return positives, negatives 
+
+
+    def dense_to_one_hot(self, labels_dense, num_classes=10):
+        num_labels = labels_dense.shape[0]
+        index_offset = np.arange(num_labels) * num_classes
+        labels_one_hot = np.zeros((num_labels, num_classes))
+        labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
+        return labels_one_hot
 
     def train(self, num_batches=1000000):
         self.init_summary()
@@ -105,31 +117,43 @@ class WassersteinGAN(object):
 
             for _ in range(0, d_iters):
                 bx, by, names = self.sess.run([self.x_sampler, self.y_sampler, self.name_sampler])
-                by = self.process_label(by, sample=False)
-                print(names)
-                print(by)
+                by, bfy = self.process_label(by, sample=True)
+                bo = self.dense_to_one_hot(np.array([int(ins[2]) for ins in by]), 80)
+                br = self.dense_to_one_hot(np.array([int(ins[3]) for ins in by]), 117)
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 self.sess.run(self.d_clip)
-                self.sess.run(self.d_rmsprop, feed_dict={self.x: bx, self.z: bz})
+                self.sess.run(self.d_rmsprop, feed_dict={self.x: bx, self.z: bz, self.o: bo, self.r: br})
 
+            bx, by, names = self.sess.run([self.x_sampler, self.y_sampler, self.name_sampler])
+            by, bfy = self.process_label(by, sample=True)
+            # print([ins for ins in by])
+            bo = self.dense_to_one_hot(np.array([int(ins[2]) for ins in by]), 80)
+            br = self.dense_to_one_hot(np.array([int(ins[3]) for ins in by]), 117)
             bz = self.z_sampler(self.batch_size, self.z_dim)
-            self.sess.run(self.g_rmsprop, feed_dict={self.z: bz})
+            self.sess.run(self.g_rmsprop, feed_dict={self.z: bz, self.o: bo, self.r: br})
 
             if t % 100 == 0 or t < 100:
                 #bx = self.x_sampler(batch_size)
-                bx = self.sess.run(self.x_sampler)
+                bx, by = self.sess.run([self.x_sampler, self.y_sampler])
+                by, bfy = self.process_label(by, sample=True)
+                bo = self.dense_to_one_hot(np.array([int(ins[2]) for ins in by]), 80)
+                br = self.dense_to_one_hot(np.array([int(ins[3]) for ins in by]), 117)
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 d_loss = self.sess.run(
-                    self.d_loss, feed_dict={self.x: bx, self.z: bz})
+                    self.d_loss, feed_dict={self.x: bx, self.z: bz, self.o: bo, self.r: br})
                 g_loss = self.sess.run(
-                    self.g_loss, feed_dict={self.z: bz})
+                    self.g_loss, feed_dict={self.z: bz, self.o: bo, self.r: br})
                 print('Iter [%8d] Time [%5.4f] d_loss [%.4f] g_loss [%.4f]' %
                         (t + 1, time.time() - start_time, d_loss, g_loss))
                 self.write_summary(d_loss, g_loss, t)
 
             if t % 100 == 0:
                 bz = self.z_sampler(self.batch_size, self.z_dim)
-                bx = self.sess.run(self.x_, feed_dict={self.z: bz})
+                by = self.sess.run(self.y_sampler)
+                by, bfy = self.process_label(by, sample=True)
+                bo = self.dense_to_one_hot(np.array([int(ins[2]) for ins in by]), 80)
+                br = self.dense_to_one_hot(np.array([int(ins[3]) for ins in by]), 117)
+                bx = self.sess.run(self.x_, feed_dict={self.z: bz, self.o: bo, self.r: br})
                 rescaled = np.divide(bx + 1.0, 2.0)
                 np.reshape(np.clip(rescaled, 0.0, 1.0), bx.shape)
                 y = concat_multiple_images(bx)
