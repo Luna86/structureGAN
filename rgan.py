@@ -19,7 +19,7 @@ class RGAN(object):
         self.data = self.dataset.name
         self.g_net = g_net
         self.d_net = d_net
-				self.r_net = r_net
+		self.r_net = r_net
 
         self.x_sampler = self.dataset.train_sampler[0]
         self.y_sampler = self.dataset.train_sampler[1]
@@ -92,7 +92,13 @@ class RGAN(object):
             for i in range(y.shape[0]):
                 positives.append(self.dataset.list_relation[np.where(y[i] == 1)[0]])
                 negatives.append(self.dataset.list_relation[np.where(y[i] == -1)[0]])
-        return positives, negatives 
+        return positives, negatives
+
+    def get_label_one_hot(self, y):
+        positives, _ = self.process_label(y) 
+        actions =[ for i in positives]
+        objects
+        
 
     def train(self, num_batches=1000000):
         self.init_summary()
@@ -105,7 +111,7 @@ class RGAN(object):
 
             for _ in range(0, d_iters):
                 bx, by, names = self.sess.run([self.x_sampler, self.y_sampler, self.name_sampler])
-                by = self.process_label(by)
+                positives = self.process_label(by)
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 self.sess.run(self.d_clip)
                 self.sess.run(self.d_rmsprop, feed_dict={self.x: bx, self.z: bz})
