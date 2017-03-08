@@ -13,6 +13,8 @@ tf.app.flags.DEFINE_integer('num_preprocess_threads', 4,
                             """Please make this a multiple of 4.""")
 tf.app.flags.DEFINE_integer('num_readers', 1,
                             """Number of parallel readers during train.""")
+tf.app.flags.DEFINE_integer('num_relations', 600,
+                            """Number of parallel readers during train.""")
 
 # Images are preprocessed asynchronously using multiple threads specified by
 # --num_preprocss_threads and the resulting processed images are stored in a
@@ -156,15 +158,18 @@ def distort_image(image, height, width, thread_id=0, scope=None):
     # Restore the shape since the dynamic slice based upon the bbox_size loses
     # the third dimension.
     #distorted_image.set_shape([height, width, 3])
+
     if not thread_id:
       tf.summary.image('cropped_resized_image',
                        tf.expand_dims(distorted_image, 0))
+
 
     # Randomly flip the image horizontally.
     #distorted_image = tf.image.random_flip_left_right(distorted_image)
 
     # Randomly distort the colors.
     #distorted_image = distort_color(distorted_image, thread_id)
+
 
     if not thread_id:
       tf.summary.image('final_distorted_image',
@@ -346,9 +351,11 @@ def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=
       # Parse a serialized Example proto to extract the image and metadata.
       #image_buffer, label_index, bbox, _ = parse_example_proto(
       #    example_serialized)
-      image_buffer, label_index, filename = parse_example_proto(
+      image_buffer, label_buffer, filename = parse_example_proto(
           example_serialized)
       image = image_preprocessing(image_buffer, image_size, train, thread_id)
+      label_index = tf.decode_raw(label_buffer, out_type = tf.int32)
+      label_index = tf.reshape(label_index, shape = [FLAGS.num_relations]) 
       images_and_labels.append([image, label_index, filename])
 
     images, label_index_batch, filenames = tf.train.batch_join(
@@ -366,4 +373,4 @@ def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=
 
     # Display the training images in the visualizer.
     tf.summary.image('images', images)
-    return images, tf.reshape(label_index_batch, [batch_size]), tf.reshape(filenames, [batch_size])
+    return images, tf.reshape(label_index_batch, [batch_size, FLAGS.num_relations]), tf.reshape(filenames, [batch_size])

@@ -31,23 +31,16 @@ import os
 
 import tensorflow as tf
 
-FLAGS = tf.app.flags.FLAGS
-
-# Basic model parameters.
-tf.app.flags.DEFINE_string('data_dir', '/media/hao/WDdisk/relation2image/data/hico_benchmark/hico_20150920/tfrecord',
-                           """Path to the processed data, i.e. """
-                           """TFRecord of Example protos.""")
-
-
 class Dataset(object):
   """A simple class for handling data sets."""
   __metaclass__ = ABCMeta
 
-  def __init__(self, name, subset):
+  def __init__(self, name, subset, datadir):
     """Initialize dataset using a subset and the path to the data."""
     assert subset in self.available_subsets(), self.available_subsets()
     self.name = name
     self.subset = subset
+    self.datadir = datadir
 
   @abstractmethod
   def num_classes(self):
@@ -81,12 +74,12 @@ class Dataset(object):
     Raises:
       ValueError: if there are not data_files matching the subset.
     """
-    tf_record_pattern = os.path.join(FLAGS.data_dir, '%s-*' % self.subset)
+    tf_record_pattern = os.path.join(self.datadir, '%s-*' % self.subset)
     data_files = tf.gfile.Glob(tf_record_pattern)
     if not data_files:
       print('No files found for dataset %s/%s at %s' % (self.name,
                                                         self.subset,
-                                                        FLAGS.data_dir))
+                                                        self.datadir))
 
       self.download_message()
       exit(-1)
