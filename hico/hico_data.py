@@ -18,16 +18,16 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-
-
+import os
+import h5py
 from hico.dataset import Dataset
-
 
 class HicoData(Dataset):
   """ImageNet data set."""
 
-  def __init__(self, subset):
-    super(HicoData, self).__init__('Hico', subset)
+  def __init__(self, subset, datadir):
+    super(HicoData, self).__init__('Hico', subset, datadir)
+    self.read_meta()
 
   def num_classes(self):
     """Returns the number of classes in the data set."""
@@ -44,4 +44,15 @@ class HicoData(Dataset):
   def download_message(self):
     """Instruction to download and extract the tarball from Flowers website."""
     print("No download message")
+
+  def read_meta(self):
+    #read the meta data from the dataset
+    path = os.path.join(self.datadir, 'meta.h5')
+    assert(os.path.exists(path))
+    meta = h5py.File(path, 'r')
+    self.list_obj = meta['list_obj'][:]
+    self.list_action = meta['list_action'][:]
+    self.list_relation = meta['list_relation'][:]
+
+    meta.close()
     

@@ -12,17 +12,17 @@ import matplotlib.pyplot as plt
 logging = tf.logging
 logging.set_verbosity(tf.logging.ERROR)
 
-class WassersteinGAN(object):
-    def __init__(self, g_net, d_net, data, model):
+class RGAN(object):
+    def __init__(self, g_net, d_net, r_net, data, model):
         self.model = model
         self.dataset = data
         self.data = self.dataset.name
         self.g_net = g_net
         self.d_net = d_net
+				self.r_net = r_net
 
         self.x_sampler = self.dataset.train_sampler[0]
         self.y_sampler = self.dataset.train_sampler[1]
-        self.name_sampler = self.dataset.train_sampler[2]
         self.z_sampler = self.dataset.noise_sampler
 
         self.batch_size = self.dataset.config.batch_size
@@ -31,13 +31,13 @@ class WassersteinGAN(object):
         self.logdir = self.dataset.config.logdir
 
         self.x = tf.placeholder(tf.float32, self.x_sampler.get_shape(), name='x')
+		self.y = tf.placeholder(tf.float32, [self.batch_size, some_size], name = 'y') #TODO
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
-        self.r = tf.placeholder(tf.int32, [self.batch_size], name='r')
-        self.o = tf.placeholder(tf.int32, [self.batch_size], name='o')
+		self.r = self.r_net(self.y)
 
-        self.x_ = self.g_net(self.z, self.r, self.o)
-        self.d = self.d_net(self.x, reuse=False)
-        self.d_ = self.d_net(self.x_)
+        self.x_ = self.g_net(self.z, self.r)
+        self.d = self.d_net(self.x, self.r, reuse=False)
+        self.d_ = self.d_net(self.x_, self.r)
 
         self.g_loss = tf.reduce_mean(self.d_)
         self.d_loss = tf.reduce_mean(self.d) - tf.reduce_mean(self.d_)
@@ -82,6 +82,18 @@ class WassersteinGAN(object):
     def terminate(self):
         self.train_writer.close()
 
+    def process_label(self, y, sample=True):
+        positives, negatives = [], []
+        if sample:
+            for i in range(y.shape[0]):
+                positives.append(self.dataset.list_relation[np.where(y[i] == 1)[0][0]])
+                negatives.append(self.dataset.list_relation[np.where(y[i] == -1)[0][0]])
+        else:
+            for i in range(y.shape[0]):
+                positives.append(self.dataset.list_relation[np.where(y[i] == 1)[0]])
+                negatives.append(self.dataset.list_relation[np.where(y[i] == -1)[0]])
+        return positives, negatives 
+
     def train(self, num_batches=1000000):
         self.init_summary()
         self.sess.run(tf.global_variables_initializer())
@@ -93,6 +105,7 @@ class WassersteinGAN(object):
 
             for _ in range(0, d_iters):
                 bx, by, names = self.sess.run([self.x_sampler, self.y_sampler, self.name_sampler])
+                by = self.process_label(by)
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 self.sess.run(self.d_clip)
                 self.sess.run(self.d_rmsprop, feed_dict={self.x: bx, self.z: bz})
@@ -127,13 +140,13 @@ class WassersteinGAN(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('')
     parser.add_argument('--data', type=str, default='hico')
-    parser.add_argument('--model', type=str, default='dcgan')
+    parser.add_argument('--model', type=str, default='rgan')
     parser.add_argument('--gpus', type=str, default='0')
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--image_size', type=int, default=64)
-    parser.add_argument('--datadir', type=str, default='/datasets/BigLearning/hzhang2/data/hico')
     parser.add_argument('--logdir', type=str, default='')
-    parser.add_argument('--z_dim', type=int, default=100)
+	parser.add_argument('--z_dim', type=int, default=100)
+	parser.add_argument('--datadir', type=str, default='/datasets/BigLearning/hzhang2/data/hico')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
@@ -142,11 +155,12 @@ if __name__ == '__main__':
     config = importlib.import_module(args.data).config(
                 batch_size = args.batch_size, image_size = args.image_size,
                 logdir = args.logdir, z_dim = args.z_dim,
-                datadir = args.datadir)
+								datadir = args.datadir)
 
     data = importlib.import_module(args.data).dataset(config)
 
     d_net = model.Discriminator()
     g_net = model.Generator()
-    wgan = WassersteinGAN(g_net, d_net, data, args.model)
-    wgan.train()
+		r_net = model.relation2vec()
+    rgan = RGAN(g_net, d_net, r_net, data, args.model)
+    rgan.train()
