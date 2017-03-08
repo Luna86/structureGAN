@@ -158,15 +158,11 @@ def distort_image(image, height, width, thread_id=0, scope=None):
     # Restore the shape since the dynamic slice based upon the bbox_size loses
     # the third dimension.
     #distorted_image.set_shape([height, width, 3])
-<<<<<<< HEAD
-    #if not thread_id:
-    #  tf.image_summary('cropped_resized_image',
-    #                   tf.expand_dims(distorted_image, 0))
-=======
+
     if not thread_id:
       tf.summary.image('cropped_resized_image',
                        tf.expand_dims(distorted_image, 0))
->>>>>>> 70d84bd14ae338df60f5c07f07dde94b382496cc
+
 
     # Randomly flip the image horizontally.
     #distorted_image = tf.image.random_flip_left_right(distorted_image)
@@ -174,15 +170,10 @@ def distort_image(image, height, width, thread_id=0, scope=None):
     # Randomly distort the colors.
     #distorted_image = distort_color(distorted_image, thread_id)
 
-<<<<<<< HEAD
-    #if not thread_id:
-    #  tf.image_summary('final_distorted_image',
-    #                   tf.expand_dims(distorted_image, 0))
-=======
+
     if not thread_id:
       tf.summary.image('final_distorted_image',
                        tf.expand_dims(distorted_image, 0))
->>>>>>> 70d84bd14ae338df60f5c07f07dde94b382496cc
     return distorted_image
 
 

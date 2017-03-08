@@ -107,7 +107,7 @@ class RelationshipComposition(object):
                 vs.reuse_variables()
             bs = tf.shape(rela)[0]
             fc = tcl.fully_connected(rela, 512, activation_fn=tf.nn.relu)
-            feature = tf.reshape(tf.tile(fc, 16 * 16), tf.stack([bs, 16, 16, 512]))
+            feature = tf.reshape(tf.tile(fc, [1, 16 * 16]), tf.stack([bs, 16, 16, 512]))
             # feature = relu_batch_norm(feature)
             conv1 = tcl.conv2d(
                 tf.concat(3, [feature1, feature, feature2]), 512, [5, 5], [1, 1],

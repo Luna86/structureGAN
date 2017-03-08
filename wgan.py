@@ -82,6 +82,18 @@ class WassersteinGAN(object):
     def terminate(self):
         self.train_writer.close()
 
+    def process_label(self, y, sample=True):
+        positives, negatives = [], []
+        if sample:
+            for i in range(y.shape[0]):
+                positives.append(self.dataset.list_relation[np.where(y[i] == 1)[0][0]])
+                negatives.append(self.dataset.list_relation[np.where(y[i] == -1)[0][0]])
+        else:
+            for i in range(y.shape[0]):
+                positives.append(self.dataset.list_relation[np.where(y[i] == 1)[0]])
+                negatives.append(self.dataset.list_relation[np.where(y[i] == -1)[0]])
+        return positives, negatives 
+
     def train(self, num_batches=1000000):
         self.init_summary()
         self.sess.run(tf.global_variables_initializer())
@@ -93,6 +105,9 @@ class WassersteinGAN(object):
 
             for _ in range(0, d_iters):
                 bx, by, names = self.sess.run([self.x_sampler, self.y_sampler, self.name_sampler])
+                by = self.process_label(by, sample=False)
+                print(names)
+                print(by)
                 bz = self.z_sampler(self.batch_size, self.z_dim)
                 self.sess.run(self.d_clip)
                 self.sess.run(self.d_rmsprop, feed_dict={self.x: bx, self.z: bz})
@@ -131,7 +146,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpus', type=str, default='0')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--image_size', type=int, default=64)
-    parser.add_argument('--datadir', type=str, default='/datasets/BigLearning/hzhang2/data/hico')
+    parser.add_argument('--datadir', type=str, default='/mfs/zhijie/data/tfrecord')
     parser.add_argument('--logdir', type=str, default='')
     parser.add_argument('--z_dim', type=int, default=100)
     args = parser.parse_args()
