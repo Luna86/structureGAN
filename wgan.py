@@ -129,8 +129,9 @@ if __name__ == '__main__':
     parser.add_argument('--gpus', type=str, default='0')
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--image_size', type=int, default=64)
+    parser.add_argument('--datadir', type=str, default='/datasets/BigLearning/hzhang2/data/hico')
     parser.add_argument('--logdir', type=str, default='')
-		parser.add_argument('--z_dim', type=int, default=100)
+    parser.add_argument('--z_dim', type=int, default=100)
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
@@ -138,7 +139,8 @@ if __name__ == '__main__':
     model = importlib.import_module(args.data + '.' + args.model)
     config = importlib.import_module(args.data).config(
                 batch_size = args.batch_size, image_size = args.image_size,
-                logdir = args.logdir, z_dim = args.z_dim)
+                logdir = args.logdir, z_dim = args.z_dim,
+                datadir = args.datadir)
 
     data = importlib.import_module(args.data).dataset(config)
 
