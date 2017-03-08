@@ -32,8 +32,10 @@ class WassersteinGAN(object):
 
         self.x = tf.placeholder(tf.float32, self.x_sampler.get_shape(), name='x')
         self.z = tf.placeholder(tf.float32, [self.batch_size, self.z_dim], name='z')
+        self.r = tf.placeholder(tf.int32, [self.batch_size], name='r')
+        self.o = tf.placeholder(tf.int32, [self.batch_size], name='o')
 
-        self.x_ = self.g_net(self.z)
+        self.x_ = self.g_net(self.z, self.r, self.o)
         self.d = self.d_net(self.x, reuse=False)
         self.d_ = self.d_net(self.x_)
 
