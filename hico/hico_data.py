@@ -53,6 +53,8 @@ class HicoData(Dataset):
     self.list_obj = meta['list_obj'][:]
     self.list_action = meta['list_action'][:]
     self.list_relation = meta['list_relation'][:]
-
+    self.num_obj = len(self.list_obj)
+    self.num_action = len(self.list_action)
+    self.num_relation = len(self.list_relation)
     meta.close()
     
