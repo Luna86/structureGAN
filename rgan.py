@@ -41,8 +41,8 @@ class RGAN(object):
         self.o = tf.placeholder(tf.float32, [self.batch_size, self.num_obj], name = 'o') 
 
         self.x_ = self.g_net(self.z, self.r, self.o)
-        self.d = self.d_net(self.x, reuse=False) #TODO condition on the relation
-        self.d_ = self.d_net(self.x_)
+        self.d = self.d_net(self.x, self.r, self.o, reuse=False) #TODO condition on the relation
+        self.d_ = self.d_net(self.x_, self.r, self.o, reuse=True)
 
         #TODO
         self.g_loss = tf.reduce_mean(self.d_)
@@ -62,6 +62,8 @@ class RGAN(object):
 
         self.d_clip = [v.assign(tf.clip_by_value(v, -0.01, 0.01)) for v in self.d_net.vars]
 
+        for var in tf.trainable_variables():
+            print(var)
         # init some summary variables
         self.g_loss_monitor = tf.Variable(0.0, trainable = False)
         self.d_loss_monitor = tf.Variable(0.0, trainable = False)

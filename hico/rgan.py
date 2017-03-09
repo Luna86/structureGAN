@@ -4,27 +4,32 @@ import tensorflow.contrib.layers as tcl
 
 from layers import *
 
-
 class Discriminator(object):
     def __init__(self):
         self.name = 'hico/rgan/d_net'
+        self.o_net = ObjectGenerator()
 
-    def __call__(self, x, reuse=True):
+    def __call__(self, x, r, o, reuse=True):
         with tf.variable_scope(self.name) as vs:
             if reuse:
                 vs.reuse_variables()
             bs = tf.shape(x)[0]
-            #x = tf.reshape(x, [bs, 64, 64, 3])
+
+            obj_feature = self.o_net(o, reuse = reuse)
+            fc = tcl.fully_connected(r, 16 * 16 * 256, activation_fn = tf.identity)
+            conv_r1 = tf.reshape(fc, tf.stack([bs, 16, 16, 256]))
+            conv_r1 = relu_batch_norm(conv_r1)
+
             conv1 = tcl.conv2d(
                 x, 64, [4, 4], [2, 2],
                 weights_initializer=tf.random_normal_initializer(stddev=0.02),
-                activation_fn=leaky_relu
-            )
+                activation_fn=leaky_relu)
             conv2 = tcl.conv2d(
                 conv1, 128, [4, 4], [2, 2],
                 weights_initializer=tf.random_normal_initializer(stddev=0.02),
-                activation_fn=leaky_relu_batch_norm
-            )
+                activation_fn=leaky_relu_batch_norm)
+            # inject the relation and the object maps
+            conv2 = tf.concat([conv2, conv_r1, obj_feature], 3)
             conv3 = tcl.conv2d(
                 conv2, 256, [4, 4], [2, 2],
                 weights_initializer=tf.random_normal_initializer(stddev=0.02),
@@ -109,7 +114,6 @@ class RelationGenerator(object):
             conv1 = tf.reshape(fc, tf.stack([bs, 16, 16, 512]))
             conv1 = relu_batch_norm(conv1)
             conv1 = tf.concat([noise_feature, conv1, obj_feature], 3)
-            print(conv1)
             conv2 = tcl.conv2d(conv1, 512, [5, 5], [1, 1], 
                 weights_initializer = tf.random_normal_initializer(stddev=0.02),
                 activation_fn = relu_batch_norm)
