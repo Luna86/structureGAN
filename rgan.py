@@ -38,7 +38,7 @@ class RGAN(object):
 
         # caz Hico's relations are all human -> action -> object
         self.r = tf.placeholder(tf.float32, [self.batch_size, self.num_action], name = 'r') 
-        self.o = tf.placeholder(tf.float32, [self.batch_size, self.num_obj], name = 'r') 
+        self.o = tf.placeholder(tf.float32, [self.batch_size, self.num_obj], name = 'o') 
 
         self.x_ = self.g_net(self.z, self.r, self.o)
         self.d = self.d_net(self.x, reuse=False) #TODO condition on the relation
