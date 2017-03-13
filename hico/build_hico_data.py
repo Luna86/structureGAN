@@ -12,11 +12,11 @@ import h5py
 import numpy as np
 import tensorflow as tf
 
-tf.app.flags.DEFINE_string('train_directory', '/media/hao/SeagateDisk2/dataset/hico_20150920/images/train2015/',
+tf.app.flags.DEFINE_string('train_directory', '/datasets/BigLearning/hzhang2/data/hico_det/hico_20160224_det/images/train2015/',
                            'Training data directory')
-tf.app.flags.DEFINE_string('validation_directory', '/media/hao/SeagateDisk2/dataset/hico_20150920/images/test2015/',
+tf.app.flags.DEFINE_string('validation_directory', '/datasets/BigLearning/hzhang2/data/hico_det/hico_20160224_det/images/test2015/',
                            'Validation data directory')
-tf.app.flags.DEFINE_string('output_directory', '/media/hao/SeagateDisk2/dataset/hico_20150920/tfrecord',
+tf.app.flags.DEFINE_string('output_directory', '/datasets/BigLearning/hzhang2/data/hico_det/',
                            'Output data directory')
 
 tf.app.flags.DEFINE_integer('train_shards', 16,
@@ -48,7 +48,7 @@ def _bytes_feature(value):
   return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
-def _convert_to_example(filename, image_buffer, label,
+def _convert_to_example(filename, image_buffer, index, 
                         height, width):
 
   colorspace = 'RGB'
@@ -60,7 +60,7 @@ def _convert_to_example(filename, image_buffer, label,
       'image/width': _int64_feature(width),
       'image/colorspace': _bytes_feature(colorspace),
       'image/channels': _int64_feature(channels),
-      'image/class/label': _bytes_feature(label.tostring()),
+      'image/index': _int64_feature(index),
       'image/format': _bytes_feature(image_format),
       'image/filename': _bytes_feature(os.path.basename(filename)),
       'image/encoded': _bytes_feature(image_buffer)}))
@@ -116,9 +116,8 @@ def _process_image(filename, coder):
 
   return image_data, height, width
 
-
 def _process_image_files_batch(coder, thread_index, ranges, name, filenames,
-                                labels, num_shards):
+                                arr, num_shards):
   # Each thread produces N shards where N = int(num_shards / num_threads).
   # For instance, if num_shards = 128, and the num_threads = 2, then the first
   # thread would produce shards [0, 64).
@@ -143,10 +142,9 @@ def _process_image_files_batch(coder, thread_index, ranges, name, filenames,
     files_in_shard = np.arange(shard_ranges[s], shard_ranges[s + 1], dtype=int)
     for i in files_in_shard:
       filename = filenames[i]
-      label = labels[:, i]
+      index = arr[i]
       image_buffer, height, width = _process_image(filename, coder)
-
-      example = _convert_to_example(filename, image_buffer, label, 
+      example = _convert_to_example(filename, image_buffer, index, 
                                     height, width)
       writer.write(example.SerializeToString())
       shard_counter += 1
@@ -167,11 +165,9 @@ def _process_image_files_batch(coder, thread_index, ranges, name, filenames,
   sys.stdout.flush()
 
 
-def _process_image_files(name, filenames, list_obj, list_action, list_relation, 
-                        label, num_shards):
+def _process_image_files(name, filenames, arr, num_shards):
 
-  assert len(filenames) == label.shape[1]
-
+  assert len(filenames) == arr.shape[0]
   # Break all images into batches with a [ranges[i][0], ranges[i][1]].
   spacing = np.linspace(0, len(filenames), FLAGS.num_threads + 1).astype(np.int)
   ranges = []
@@ -191,7 +187,7 @@ def _process_image_files(name, filenames, list_obj, list_action, list_relation,
 
   threads = []
   for thread_index in range(len(ranges)):
-    args = (coder, thread_index, ranges, name, filenames, label, num_shards)
+    args = (coder, thread_index, ranges, name, filenames, arr, num_shards)
     t = threading.Thread(target=_process_image_files_batch, args=args)
     t.start()
     threads.append(t)
@@ -202,18 +198,16 @@ def _process_image_files(name, filenames, list_obj, list_action, list_relation,
         (datetime.now(), len(filenames)))
   sys.stdout.flush()
 
-
-def _process_dataset(name, directory, num_shards, list_image, list_obj, 
-                    list_action, list_relation, label):
+def _process_dataset(name, directory, num_shards, list_image, arr):
   filenames = []
   for i in list_image:
     path = os.path.join(directory, i)
     filenames.append(path)
-  _process_image_files(name, filenames, list_obj, list_action, list_relation,
-                       label, num_shards)
+  _process_image_files(name, filenames, arr, num_shards)
 
 def _read_annotations():
-  anno_file = '/media/hao/WDdisk/relation2image/data/hico_benchmark/hico_20150920/anno.mat'
+  datadir = '/datasets/BigLearning/hzhang2/data/hico_det/hico_20160224_det/'
+  anno_file = os.path.join(datadir, 'anno.mat')
   mat = scipy.io.loadmat(anno_file) 
   list_train_raw, list_test_raw = mat['list_train'], mat['list_test']
   list_train, list_test = [], []
@@ -221,103 +215,53 @@ def _read_annotations():
     list_train.append(im_name[0][0])
   for im_name in list_test_raw:
     list_test.append(im_name[0][0])
-  
-  # read obj list
-  list_obj = []
-  list_obj_file = '/media/hao/WDdisk/relation2image/data/hico_benchmark/hico_20150920/hico_list_obj.txt'
-  with open(list_obj_file, 'r') as f:
-    line_cnt = 0
-    for line in f.readlines():
-      line_cnt += 1
-      if line_cnt >= 3:
-        index, name = line.rstrip('\n').split()
-        list_obj.append(name)
 
-  # read action list
-  list_action = []
-  list_action_file = '/media/hao/WDdisk/relation2image/data/hico_benchmark/hico_20150920/hico_list_vb.txt'
-  with open(list_action_file, 'r') as f:
-    line_cnt = 0
-    for line in f.readlines():
-      line_cnt += 1
-      if line_cnt >= 3:
-        index, name = line.rstrip('\n').split()
-        list_action.append(name)
-
-  # read relation list
-  relations_raw = mat['list_action']
-  list_relation = []
-  for r in relations_raw:
-    obj = r[0][0][0]
-    obj_index = list_obj.index(obj)
-    act = r[0][1][0]
-    act_index = list_action.index(act)
-    relation = [obj, act, obj_index, act_index]
-    list_relation.append(relation)
-
-  # read image labels -- their relations
-  train_label_raw, test_label_raw = mat['anno_train'], mat['anno_test']
-  train_label, test_label = np.zeros(train_label_raw.shape, dtype = np.int32), np.zeros(test_label_raw.shape, dtype = np.int32)
-  for row in range(0, train_label_raw.shape[0]):
-    for col in range(0, train_label_raw.shape[1]):
-      entry = train_label_raw[row, col]
-      if entry == 1.0:
-        train_label[row, col] = 1
-      elif entry == 0:
-        train_label[row, col] = 0
-      elif entry == -1.0:
-        train_label[row, col] = -1
-      else:
-        train_label[row, col] = -2
-  for row in range(0, test_label_raw.shape[0]):
-    for col in range(0, test_label_raw.shape[1]):
-      entry = test_label_raw[row, col]
-      if entry == 1.0:
-        test_label[row, col] = 1
-      elif entry == 0:
-        test_label[row, col] = 0
-      elif entry == -1.0:
-        test_label[row, col] = -1
-      else:
-        test_label[row, col] = -2
-  
   # random shuffle the data
-  arr = np.arange(train_label.shape[1])
-  np.random.shuffle(arr)
-  list_train_shuf = []
-  train_label_shuf = np.zeros_like(train_label)
-  for i in range(arr.shape[0]):
-    list_train_shuf.append(list_train[arr[i]]) 
-    train_label_shuf[:, i] = train_label[:, arr[i]]
+  train_arr = np.arange(len(list_train))
+  np.random.shuffle(train_arr)
+  list_train_shuf= []
+  for i in range(train_arr.shape[0]):
+    list_train_shuf.append(list_train[train_arr[i]])
   
-  arr = np.arange(test_label.shape[1])
-  np.random.shuffle(arr)
+  test_arr = np.arange(len(list_test))
+  np.random.shuffle(test_arr)
   list_test_shuf = []
-  test_label_shuf = np.zeros_like(test_label)
-  for i in range(arr.shape[0]):
-    list_test_shuf.append(list_test[arr[i]]) 
-    test_label_shuf[:, i] = test_label[:, arr[i]]
-  return list_train_shuf, list_test_shuf, list_obj, list_action, list_relation, train_label_shuf, test_label_shuf
+  for i in range(test_arr.shape[0]):
+    list_test_shuf.append(list_test[test_arr[i]])
 
-def _from_unicode_to_ascii(list_obj, list_action, list_train, list_test, list_relation):
-  list_obj = [n.encode("ascii", "ignore") for n in list_obj]
-  list_action = [n.encode("ascii", "ignore") for n in list_action]
+  return list_train_shuf, list_test_shuf, train_arr, test_arr
+
+def _from_unicode_to_ascii(list_train, list_test):
+  #list_obj = [n.encode("ascii", "ignore") for n in list_obj]
+  #list_action = [n.encode("ascii", "ignore") for n in list_action]
   list_train = [n.encode("ascii", "ignore") for n in list_train]
-  list_test= [n.encode("ascii", "ignore") for n in list_test]
-  for i in list_relation:
-    i[0] = i[0].encode("ascii", "ignore")
-    i[1] = i[1].encode("ascii", "ignore")
-  return list_obj, list_action, list_train, list_test, list_relation
+  list_test = [n.encode("ascii", "ignore") for n in list_test]
+  #for i in list_relation:
+  #  i[0] = i[0].encode("ascii", "ignore")
+  #  i[1] = i[1].encode("ascii", "ignore")
+  #return list_obj, list_action, list_train, list_test, list_relation
+  return list_train, list_test
 
 def _save_meta(list_obj, list_action, list_train, list_test, list_relation):
   # first, save the metadata into hdf5
-  meta = h5py.File(os.path.join('/media/hao/WDdisk/relation2image/data/hico_benchmark/hico_20150920/tfrecord', 'meta.h5'), 'w')
+  datadir = '/datasets/BigLearning/hzhang2/data/hico_det/hico_20160224_det/'
+  meta = h5py.File(os.path.join(datadir, 'meta.h5'), 'w')
   meta.create_dataset('list_obj', data = list_obj)
   meta.create_dataset('list_action', data = list_action)
   meta.create_dataset('list_relation', data = list_relation)
   meta.create_dataset('list_train', data = list_train)
   meta.create_dataset('list_test', data = list_test)
   meta.close()
+
+def _save_label(train_label, test_label, bboxes_train, bboxes_test):
+  datadir = '/datasets/BigLearning/hzhang2/data/hico_det/hico_20160224_det/'
+  meta = h5py.File(os.path.join(datadir, 'label.h5'), 'w')
+  meta.create_dataset('train_label', data = train_label)
+  meta.create_dataset('test_label', data = test_label)
+  meta.create_dataset('train_bboxes', data = bboxes_train)
+  meta.create_dataset('test_bboxes', data = bboxes_test)
+  meta.close()
+  return
 
 def main(unused_argv):
   assert not FLAGS.train_shards % FLAGS.num_threads, (
@@ -327,15 +271,17 @@ def main(unused_argv):
       'FLAGS.validation_shards')
   print('Saving results to %s' % FLAGS.output_directory)
 
-  list_train, list_test, list_obj, list_action, list_relation, train_label, test_label = _read_annotations()
+  list_train, list_test, train_arr, test_arr = _read_annotations()
 
   # Run it!
-  list_obj, list_action, list_train, list_test, list_relation = _from_unicode_to_ascii(list_obj, list_action, list_train, list_test, list_relation)
-  _save_meta(list_obj, list_action, list_train, list_test, list_relation)
+  list_train, list_test = _from_unicode_to_ascii(list_train, list_test)
+  #_save_meta(list_obj, list_action, list_train, list_test, list_relation)
+  #_save_label(train_label, test_label, bboxes_train, bboxes_test)
+
   _process_dataset('validation', FLAGS.validation_directory,
-                   FLAGS.validation_shards, list_test, list_obj, list_action, list_relation, test_label)
+                   FLAGS.validation_shards, list_test, test_arr)
   _process_dataset('train', FLAGS.train_directory, FLAGS.train_shards,
-                   list_train, list_obj, list_action, list_relation, train_label)
+                   list_train, train_arr)
 
 if __name__ == '__main__':
   tf.app.run()

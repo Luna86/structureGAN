@@ -57,11 +57,11 @@ def distorted_inputs(dataset, batch_size=None, image_size=None, num_preprocess_t
   # Force all input processing onto CPU in order to reserve the GPU for
   # the forward inference and back-propagation.
   with tf.device('/cpu:0'):
-    images, labels, filenames = batch_inputs(
+    images, indices, filenames, hs, ws = batch_inputs(
         dataset, batch_size, image_size, train=True,
         num_preprocess_threads=num_preprocess_threads,
         num_readers=FLAGS.num_readers)
-  return images, labels, filenames
+  return images, indices, filenames, hs, ws
 
 
 def decode_jpeg(image_buffer, scope=None):
@@ -243,14 +243,14 @@ def parse_example_proto(example_serialized):
   feature_map = {
       'image/encoded': tf.FixedLenFeature([], dtype=tf.string,
                                           default_value=''),
-      'image/class/label': tf.FixedLenFeature([], dtype=tf.string,
-                                          default_value=''),
       'image/filename': tf.FixedLenFeature([], dtype=tf.string,
                                           default_value=''),
       'image/height': tf.FixedLenFeature([], dtype=tf.int64,
                                         default_value=256),
       'image/width': tf.FixedLenFeature([], dtype=tf.int64,
                                         default_value=256),
+      'image/index': tf.FixedLenFeature([], dtype=tf.int64,
+                                        default_value=0)
   }
   #sparse_float32 = tf.VarLenFeature(dtype=tf.float32)
   ## Sparse features in Example proto.
@@ -276,7 +276,7 @@ def parse_example_proto(example_serialized):
   # [1, num_boxes, coords].
   #bbox = tf.expand_dims(bbox, 0)
   #bbox = tf.transpose(bbox, [0, 2, 1])
-  return features['image/encoded'], features['image/class/label'], features['image/filename']
+  return features['image/encoded'], features['image/index'], features['image/filename'], features['image/height'], features['image/width']
 
 
 def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=None,
@@ -346,16 +346,12 @@ def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=
     images_and_labels = []
     for thread_id in range(num_preprocess_threads):
       # Parse a serialized Example proto to extract the image and metadata.
-      #image_buffer, label_index, bbox, _ = parse_example_proto(
-      #    example_serialized)
-      image_buffer, label_buffer, filename = parse_example_proto(
+      image_buffer, index_buffer, filename, h, w = parse_example_proto(
           example_serialized)
       image = image_preprocessing(image_buffer, image_size, train, thread_id)
-      label_index = tf.decode_raw(label_buffer, out_type = tf.int32)
-      label_index = tf.reshape(label_index, shape = [FLAGS.num_relations]) 
-      images_and_labels.append([image, label_index, filename])
+      images_and_labels.append([image, index_buffer, filename, h, w])
 
-    images, label_index_batch, filenames = tf.train.batch_join(
+    images, index_batch, filenames, hs, ws = tf.train.batch_join(
         images_and_labels,
         batch_size=batch_size,
         capacity=2 * num_preprocess_threads * batch_size)
@@ -370,4 +366,4 @@ def batch_inputs(dataset, batch_size, image_size, train, num_preprocess_threads=
 
     # Display the training images in the visualizer.
     tf.summary.image('images', images)
-    return images, tf.reshape(label_index_batch, [batch_size, FLAGS.num_relations]), tf.reshape(filenames, [batch_size])
+    return images, tf.reshape(index_batch, [batch_size]), tf.reshape(filenames, [batch_size]), tf.reshape(hs, [batch_size]), tf.reshape(ws, [batch_size])

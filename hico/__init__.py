@@ -21,7 +21,7 @@ class NoiseSampler(object):
 class dataset(object):
     def __init__(self, config):
         self.config = config
-        self.train = HicoData(subset = 'train', datadir = self.config.datadir) 
+        self.train = HicoData(subset = 'train', datadir = self.config.datadir)
         #self.test = HicoData(subset = 'test', data_dir = self.config.data_dir)
         self.name = 'hico'
 
@@ -32,15 +32,3 @@ class dataset(object):
         self.noise_sampler = NoiseSampler()
 
 
-
-#class DataSampler(object):
-#    def __init__(self):
-#        self.shape = [28, 28, 1]
-#
-#    def __call__(self, batch_size):
-#        return mnist.train.next_batch(batch_size)[0]
-#
-#    def data2img(self, data):
-#        return np.reshape(data, [data.shape[0]] + self.shape)
-#
-#
